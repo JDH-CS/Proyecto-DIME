@@ -2,36 +2,67 @@ import 'package:flutter/material.dart';
 
 /// Tema Material 3 en ESCALA DE GRISES.
 /// Cuando elijan la paleta final, cambien solo los valores de este archivo:
-///  - [seed] y quiten `dynamicSchemeVariant` para que M3 genere la paleta completa.
+///  - [seed] 
 ///  - [chartShades] para los colores de gráficas / categorías.
 class AppTheme {
   AppTheme._();
 
-  static const Color seed = Color(0xFF616161);
-  static const Color background = Color(0xFFF4F4F4);
+    // ── Paleta de marca (basada en el logo) ──
+  static const Color brand50 = Color(0xFFFEE7E9);
+  static const Color brand100 = Color(0xFFFCBBC2);
+  static const Color brand200 = Color(0xFFFA8F9B);
+  static const Color brand300 = Color(0xFFF86374);
+  static const Color brand400 = Color(0xFFF6374E);
+  static const Color brand500 = Color(0xFFF40B27);
+  static const Color brand600 = Color(0xFFC80920);
+  static const Color brand700 = Color(0xFFA2081A); // color del logo
+  static const Color brand800 = Color(0xFF700512);
+  static const Color brand900 = Color(0xFF44030B);
+  static const Color brand950 = Color(0xFF180104);
 
-  /// Colores semánticos (pedidos explícitamente: verde/rojo en el dashboard).
+  static const Color seed = brand700;
+  
+  // Fondo derivado de brand50 (más suave para no cansar la vista).
+  // Podemos usar este o el color exacto de la paleta que es brand50.
+  static const Color background = Color(0xFFFFF6F7);
+
+  /// Colores semánticos (verde/rojo en el dashboard).
   static const Color positive = Color(0xFF2E7D32);
   static const Color negative = Color(0xFFC62828);
 
-  /// Tonos para categorías en gráficas (de oscuro a claro).
-  static const List<Color> chartShades = [
-    Color(0xFF1A1A1A),
-    Color(0xFF3D3D3D),
-    Color(0xFF5C5C5C),
-    Color(0xFF7A7A7A),
-    Color(0xFF959595),
-    Color(0xFFAEAEAE),
-    Color(0xFFC4C4C4),
-    Color(0xFFD6D6D6),
-    Color(0xFFE6E6E6),
+  /// Colores de categorías y gráficas: sólidos y sin relación con la marca.
+  /// El orden alterna tonos para que las porciones vecinas del pastel contrasten.
+  static const List<Color> chartShades = 
+  [
+    Color(0xFF1E6FD9), // azul
+    Color(0xFFF28C28), // naranja
+    Color(0xFF2E9E5B), // verde
+    Color(0xFF7B3FBF), // morado
+    Color(0xFFF9C80E), // amarillo
+    Color(0xFF14B8A6), // turquesa
+    Color(0xFF8D5524), // marrón
+    Color(0xFF1F3A93), // azul marino
+    Color(0xFF9ACD32), // lima
+    Color(0xFF546E7A), // gris azulado
   ];
 
-  static ThemeData get light {
+  static ThemeData get light 
+  {
     final scheme = ColorScheme.fromSeed(
       seedColor: seed,
       brightness: Brightness.light,
-      dynamicSchemeVariant: DynamicSchemeVariant.monochrome,
+    ).copyWith(
+      primary: brand700,
+      onPrimary: Colors.white,
+      primaryContainer: brand100,
+      onPrimaryContainer: brand900,
+      secondary: brand600,
+      onSecondary: Colors.white,
+      surface: Colors.white,
+      onSurface: brand950,
+      onSurfaceVariant: brand800,
+      surfaceContainerHighest: brand50, // fondo de los íconos de categoría
+      outline: brand200,                // puntos de arrastre
     );
 
     OutlineInputBorder border(Color c, [double w = 1]) => OutlineInputBorder(
@@ -95,7 +126,7 @@ class AppTheme {
         elevation: 8,
         shadowColor: Colors.black26,
         height: 68,
-        indicatorColor: Colors.black.withValues(alpha: 0.08),
+        indicatorColor: brand100,
         labelTextStyle: WidgetStateProperty.resolveWith(
           (states) => TextStyle(
             fontSize: 12,

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/config/supabase_config.dart';
 import '../../core/widgets/soft_card.dart';
 import '../auth/login_screen.dart';
 import '../profile/profile_screen.dart';
@@ -7,8 +9,11 @@ import '../profile/profile_screen.dart';
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
-  void _cerrarSesion(BuildContext context) {
-    Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+  Future<void> _cerrarSesion(BuildContext context) async {
+    final navigator = Navigator.of(context, rootNavigator: true);
+    // Scope local: cierra la sesión del dispositivo sin depender de la red.
+    await supabase.auth.signOut(scope: SignOutScope.local);
+    navigator.pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const LoginScreen()),
       (route) => false,
     );

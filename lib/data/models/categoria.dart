@@ -1,5 +1,5 @@
-/// Tabla Categorias: Cid, Cusuario_id, Cnombre, Ctipo_categoria, Ccolor,
-/// Cicono, Ces_predeterminada, Cfecha_creacion.
+/// Tabla categorias: cid, cusuario_id, cnombre, ctipo_categoria, ccolor,
+/// cicono, ces_predeterminada, (corden), cfecha_creacion.
 class Categoria {
   const Categoria({
     required this.id,
@@ -12,14 +12,35 @@ class Categoria {
     required this.fechaCreacion,
   });
 
-  final String id; // Cid
-  final String usuarioId; // Cusuario_id
-  final String nombre; // Cnombre
-  final String tipoCategoria; // Ctipo_categoria: 'gasto' | 'ingreso'
-  final int color; // Ccolor (ARGB)
-  final String icono; // Cicono (clave de AppIcons)
-  final bool esPredeterminada; // Ces_predeterminada
-  final DateTime fechaCreacion; // Cfecha_creacion
+  final String id;
+  final String usuarioId;
+  final String nombre;
+  final String tipoCategoria; // 'gasto' | 'ingreso'
+  final int color; // ARGB
+  final String icono; // clave de AppIcons
+  final bool esPredeterminada;
+  final DateTime fechaCreacion;
+
+  factory Categoria.fromMap(Map<String, dynamic> m) => Categoria(
+        id: m['cid'] as String,
+        usuarioId: m['cusuario_id'] as String,
+        nombre: m['cnombre'] as String,
+        tipoCategoria: m['ctipo_categoria'] as String,
+        color: colorDesdeHex(m['ccolor'] as String?),
+        icono: (m['cicono'] as String?) ?? 'category',
+        esPredeterminada: m['ces_predeterminada'] as bool,
+        fechaCreacion: DateTime.parse(m['cfecha_creacion'] as String).toLocal(),
+      );
+
+  /// '#1E6FD9' -> 0xFF1E6FD9
+  static int colorDesdeHex(String? hex) {
+    if (hex == null || hex.length != 7) return 0xFF7A7A7A;
+    return int.parse('FF${hex.substring(1)}', radix: 16);
+  }
+
+  /// 0xFF1E6FD9 -> '#1E6FD9'
+  static String colorAHex(int argb) =>
+      '#${(argb & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase()}';
 
   Categoria copyWith({String? nombre, String? icono}) => Categoria(
         id: id,

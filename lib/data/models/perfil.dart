@@ -10,11 +10,8 @@ enum EstadoPerfil {
       };
 }
 
-/// Tabla Perfiles: Pid (= auth.users.id), Pnombre, Papellido, Pfecha_nacimiento,
-/// Pdocumento_identidad, Pestado, Pfecha_creacion, Pfecha_actualizacion.
-///
-/// Campos extra SOLO para la UI (correo/celular vienen de auth.users;
-/// fotoUrl vendrá de Supabase Storage más adelante).
+/// Tabla perfiles. El correo viene de auth.users (se pasa aparte);
+/// fotoUrl se conectará a Supabase Storage más adelante.
 class Perfil {
   const Perfil({
     required this.id,
@@ -44,4 +41,20 @@ class Perfil {
   final String? fotoUrl;
 
   String get nombreCompleto => '$nombre $apellido';
+
+  factory Perfil.fromMap(Map<String, dynamic> m, {required String correo}) => Perfil(
+        id: m['pid'] as String,
+        nombre: m['pnombre'] as String,
+        apellido: m['papellido'] as String,
+        fechaNacimiento: DateTime.parse(m['pfecha_nacimiento'] as String),
+        documentoIdentidad: m['pdocumento_identidad'] as String,
+        estado: EstadoPerfil.values.firstWhere(
+          (e) => e.label == m['pestado'],
+          orElse: () => EstadoPerfil.activo,
+        ),
+        fechaCreacion: DateTime.parse(m['pfecha_creacion'] as String).toLocal(),
+        fechaActualizacion: DateTime.parse(m['pfecha_actualizacion'] as String).toLocal(),
+        correo: correo,
+        celular: (m['ptelefono'] as String?) ?? '—',
+      );
 }

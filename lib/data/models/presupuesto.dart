@@ -1,5 +1,3 @@
-/// Tabla Presupuestos: PRid, PRusuario_id, PRnombre, PRfecha_inicio,
-/// PRfecha_fin, PRmoneda, PRfecha_creacion, PRfecha_actualizacion.
 class Presupuesto {
   const Presupuesto({
     required this.id,
@@ -20,10 +18,19 @@ class Presupuesto {
   final String moneda;
   final DateTime fechaCreacion;
   final DateTime fechaActualizacion;
+
+  factory Presupuesto.fromMap(Map<String, dynamic> m) => Presupuesto(
+        id: m['prid'] as String,
+        usuarioId: m['prusuario_id'] as String,
+        nombre: m['prnombre'] as String,
+        fechaInicio: DateTime.parse(m['prfecha_inicio'] as String),
+        fechaFin: DateTime.parse(m['prfecha_fin'] as String),
+        moneda: (m['prmoneda'] as String).trim(),
+        fechaCreacion: DateTime.parse(m['prfecha_creacion'] as String).toLocal(),
+        fechaActualizacion: DateTime.parse(m['prfecha_actualizacion'] as String).toLocal(),
+      );
 }
 
-/// Tabla Asignaciones Presupuestarias: APid, APpresupuesto_id, APcategoria_id,
-/// APmonto_asignado, APfecha_creacion, APfecha_actualizacion.
 class AsignacionPresupuestaria {
   const AsignacionPresupuestaria({
     required this.id,
@@ -40,6 +47,15 @@ class AsignacionPresupuestaria {
   final double montoAsignado;
   final DateTime fechaCreacion;
   final DateTime fechaActualizacion;
+
+  factory AsignacionPresupuestaria.fromMap(Map<String, dynamic> m) => AsignacionPresupuestaria(
+        id: m['apid'] as String,
+        presupuestoId: m['appresupuesto_id'] as String,
+        categoriaId: m['apcategoria_id'] as String,
+        montoAsignado: (m['apmonto_asignado'] as num).toDouble(),
+        fechaCreacion: DateTime.parse(m['apfecha_creacion'] as String).toLocal(),
+        fechaActualizacion: DateTime.parse(m['apfecha_actualizacion'] as String).toLocal(),
+      );
 
   AsignacionPresupuestaria copyWith({double? montoAsignado}) => AsignacionPresupuestaria(
         id: id,

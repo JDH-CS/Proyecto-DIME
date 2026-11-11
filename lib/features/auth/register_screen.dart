@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/config/supabase_config.dart';
+import '../../core/utils/auth_errors.dart';
+import '../../core/utils/biometric_vault.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/utils/ui_helpers.dart';
 import '../../core/utils/validators.dart';
-import '../../data/models/perfil.dart';
 import '../../navigation/main_shell.dart';
 import '../../state/app_state.dart';
 
@@ -27,6 +31,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   bool _usaPasaporte = false;
   bool _obscure = true;
+  bool _cargando = false;
   DateTime? _fechaNac;
 
   @override
@@ -43,6 +48,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (hoy.month < nac.month || (hoy.month == nac.month && hoy.day < nac.day)) edad--;
     return edad >= 18;
   }
+
+  String _fechaIso(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-'
+      '${d.day.toString().padLeft(2, '0')}';
 
   Future<void> _elegirFecha() async {
     final hoy = DateTime.now();
@@ -61,30 +70,48 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  void _crearCuenta() {
+  Future<void> _crearCuenta() async {
     if (!_formKey.currentState!.validate()) return;
-    final now = DateTime.now();
-    context.read<AppState>().actualizarPerfil(Perfil(
-          id: 'user_${now.microsecondsSinceEpoch}',
-          nombre: _nombreCtrl.text.trim(),
-          apellido: _apellidoCtrl.text.trim(),
-          fechaNacimiento: _fechaNac!,
-          documentoIdentidad: _docCtrl.text.trim().toUpperCase(),
-          estado: EstadoPerfil.activo,
-          fechaCreacion: now,
-          fechaActualizacion: now,
-          correo: _emailCtrl.text.trim(),
-          celular: '+507 ${_celCtrl.text.trim()}',
-        ));
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const MainShell()),
-      (route) => false,
-    );
+    setState(() => _cargando = true);
+
+    final state = context.read<AppState>();
+    final navigator = Navigator.of(context);
+    final email = _emailCtrl.text.trim();
+    final password = _passCtrl.text;
+
+    try {
+      // El trigger de la BD crea perfil, categorías y presupuesto a partir de estos datos.
+      final res = await supabase.auth.signUp(
+        email: email,
+        password: password,
+        data: {
+          'nombre': _nombreCtrl.text.trim(),
+          'apellido': _apellidoCtrl.text.trim(),
+          'fecha_nacimiento': _fechaIso(_fechaNac!),
+          'documento_identidad': _docCtrl.text.trim().toUpperCase(),
+          'telefono': '+507 ${_celCtrl.text.trim()}',
+        },
+      );
+      if (res.session == null) {
+        throw const AuthException('Revisa tu correo para confirmar la cuenta.');
+      }
+      await state.cargar();
+      await BiometricVault.guardar(email, password);
+      navigator.pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const MainShell()),
+        (route) => false,
+      );
+    } catch (e) {
+      if (mounted) showSoon(context, mensajeAuth(e));
+    } finally {
+      if (mounted) setState(() => _cargando = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(),
@@ -218,8 +245,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     // Vinculación bancaria: deshabilitada hasta tener la API de Mockoon.
                     OutlinedButton.icon(
                       onPressed: null,
-                      icon: Icon(Icons.account_balance_rounded),
-                      label: Text('Vincular banco con OAuth'),
+                      icon: const Icon(Icons.account_balance_rounded),
+                      label: const Text('Vincular banco con OAuth'),
                     ),
                     const SizedBox(height: 6),
                     Text(
@@ -229,8 +256,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                     const SizedBox(height: 24),
                     FilledButton(
-                      onPressed: _crearCuenta,
-                      child: const Text('Crear cuenta'),
+                      onPressed: _cargando ? null : _crearCuenta,
+                      child: _cargando
+                          ? SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: cs.onPrimary,
+                              ),
+                            )
+                          : const Text('Crear cuenta'),
                     ),
                     const SizedBox(height: 16),
                     Row(
@@ -242,7 +278,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             padding: const EdgeInsets.symmetric(horizontal: 6),
                             minimumSize: const Size(0, 36),
                           ),
-                          onPressed: () => Navigator.of(context).pop(),
+                          onPressed: _cargando ? null : () => Navigator.of(context).pop(),
                           child: const Text('Inicia Sesión'),
                         ),
                       ],

@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
+import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/config/supabase_config.dart';
+import '../../core/utils/auth_errors.dart';
+import '../../core/utils/biometric_vault.dart';
 import '../../core/utils/ui_helpers.dart';
 import '../../core/utils/validators.dart';
 import '../../core/widgets/dime_logo.dart';
 import '../../navigation/main_shell.dart';
+import '../../state/app_state.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -16,41 +22,11 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  // Prellenado para agilizar la demo. Quítalo si prefieres campos vacíos.
-  final _emailCtrl = TextEditingController(text: 'peter.parker@gmail.com');
-  final _passCtrl = TextEditingController(text: '12345678');
-  bool _obscure = true;
-
+  final _emailCtrl = TextEditingController();
+  final _passCtrl = TextEditingController();
   final _localAuth = LocalAuthentication();
-  bool _autenticando = false;   
-
-  Future<void> _loginConHuella() async {
-    if (_autenticando) return;
-    setState(() => _autenticando = true);
-    try {
-      final soportado = await _localAuth.isDeviceSupported();
-      final biometrias = await _localAuth.getAvailableBiometrics();
-
-      if (!soportado || biometrias.isEmpty) {
-        if (mounted) {
-          showSoon(context, 'Este dispositivo no tiene huella o rostro configurado.');
-        }
-        return;
-      }
-
-      final ok = await _localAuth.authenticate(
-        localizedReason: 'Verifica tu identidad para entrar a DIME',
-        biometricOnly: true,
-      );
-      if (ok && mounted) _irAHome();
-    } catch (_) {
-      if (mounted) {
-        showSoon(context, 'No se pudo verificar tu identidad. Intenta de nuevo.');
-      }
-    } finally {
-      if (mounted) setState(() => _autenticando = false);
-    }
-  }
+  bool _obscure = true;
+  bool _cargando = false;
 
   @override
   void dispose() {
@@ -59,20 +35,59 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _irAHome() {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const MainShell()),
-    );
+  /// Inicia sesión en Supabase, descarga los datos y entra a la app.
+  Future<void> _entrar(String email, String password, {bool guardarParaHuella = false}) async {
+    setState(() => _cargando = true);
+    final state = context.read<AppState>();
+    final navigator = Navigator.of(context);
+    try {
+      await supabase.auth.signInWithPassword(email: email, password: password);
+      await state.cargar();
+      if (guardarParaHuella) await BiometricVault.guardar(email, password);
+      navigator.pushReplacement(MaterialPageRoute(builder: (_) => const MainShell()));
+    } catch (e) {
+      await supabase.auth.signOut(scope: SignOutScope.local);
+      if (mounted) showSoon(context, mensajeAuth(e));
+    } finally {
+      if (mounted) setState(() => _cargando = false);
+    }
   }
 
   void _iniciarSesion() {
-    // Mock: cualquier correo/contraseña con formato válido entra.
-    if (_formKey.currentState!.validate()) _irAHome();
+    if (!_formKey.currentState!.validate()) return;
+    _entrar(_emailCtrl.text.trim(), _passCtrl.text, guardarParaHuella: true);
+  }
+
+  Future<void> _loginConHuella() async {
+    if (_cargando) return;
+    final cred = await BiometricVault.leer();
+    if (!mounted) return;
+    if (cred == null) {
+      showSoon(context, 'Inicia sesión con tu correo una vez para activar la huella.');
+      return;
+    }
+    try {
+      final soportado = await _localAuth.isDeviceSupported();
+      final biometrias = await _localAuth.getAvailableBiometrics();
+      if (!mounted) return;
+      if (!soportado || biometrias.isEmpty) {
+        showSoon(context, 'Este dispositivo no tiene huella o rostro configurado.');
+        return;
+      }
+      final ok = await _localAuth.authenticate(
+        localizedReason: 'Verifica tu identidad para entrar a DIME',
+        biometricOnly: true,
+      );
+      if (ok && mounted) await _entrar(cred.email, cred.password);
+    } catch (_) {
+      if (mounted) showSoon(context, 'No se pudo verificar tu identidad. Intenta de nuevo.');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
       body: SafeArea(
@@ -125,7 +140,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       controller: _passCtrl,
                       obscureText: _obscure,
                       textInputAction: TextInputAction.done,
-                      onFieldSubmitted: (_) => _iniciarSesion(),
+                      onFieldSubmitted: (_) => _cargando ? null : _iniciarSesion(),
                       decoration: InputDecoration(
                         labelText: 'Contraseña',
                         prefixIcon: const Icon(Icons.lock_outline_rounded),
@@ -147,8 +162,17 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 8),
                     FilledButton(
-                      onPressed: _iniciarSesion,
-                      child: const Text('Iniciar sesión'),
+                      onPressed: _cargando ? null : _iniciarSesion,
+                      child: _cargando
+                          ? SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: cs.onPrimary,
+                              ),
+                            )
+                          : const Text('Iniciar sesión'),
                     ),
                     const SizedBox(height: 20),
                     Row(
@@ -163,7 +187,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 20),
                     OutlinedButton.icon(
-                      onPressed: _autenticando ? null : _loginConHuella,
+                      onPressed: _cargando ? null : _loginConHuella,
                       icon: const Icon(Icons.fingerprint_rounded),
                       label: const Text('Usar huella dactilar'),
                     ),
@@ -177,9 +201,11 @@ class _LoginScreenState extends State<LoginScreen> {
                             padding: const EdgeInsets.symmetric(horizontal: 6),
                             minimumSize: const Size(0, 36),
                           ),
-                          onPressed: () => Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => const RegisterScreen()),
-                          ),
+                          onPressed: _cargando
+                              ? null
+                              : () => Navigator.of(context).push(
+                                    MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                                  ),
                           child: const Text('Regístrate'),
                         ),
                       ],

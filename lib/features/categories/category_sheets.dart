@@ -6,7 +6,7 @@ import '../../core/theme/app_icons.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/ui_helpers.dart';
 import '../../core/widgets/category_icon_box.dart';
-import '../../data/mock_data.dart';
+import '../../core/constants/category_templates.dart';
 import '../../data/models/categoria.dart';
 import '../../state/app_state.dart';
 
@@ -24,7 +24,7 @@ Future<void> _openSheet(BuildContext context, WidgetBuilder builder) {
 Future<void> showAddCategorySheet(BuildContext context) {
   final existentes =
       context.read<AppState>().categorias.map((c) => c.nombre.toLowerCase()).toSet();
-  final disponibles = MockData.plantillasCategorias
+  final disponibles = CategoryTemplates.all
       .where((p) => !existentes.contains(p.$1.toLowerCase()))
       .toList();
 

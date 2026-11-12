@@ -5,6 +5,7 @@ import '../../core/config/supabase_config.dart';
 import '../../core/widgets/soft_card.dart';
 import '../auth/login_screen.dart';
 import '../profile/profile_screen.dart';
+import '../bank/bank_account_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -44,9 +45,12 @@ class SettingsScreen extends StatelessWidget {
                   title: 'Administrar cuenta de DIME',
                 ),
                 const Divider(indent: 16, endIndent: 16),
-                const _SettingsTile(
+                _SettingsTile(
                   icon: Icons.account_balance_outlined,
                   title: 'Administrar cuenta bancaria',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const BankAccountScreen()),
+                  ),
                 ),
               ],
             ),

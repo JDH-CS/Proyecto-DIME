@@ -49,12 +49,12 @@ class Transaccion {
         fechaActualizacion: DateTime.parse(m['tfecha_actualizacion'] as String).toLocal(),
       );
 
-  /// Copia de la transacción sin categoría (cuando se elimina su categoría).
-  Transaccion sinCategoria() => Transaccion(
+  /// Copia con otra categoría (null = sin clasificar).
+  Transaccion conCategoria(String? nuevaCategoriaId) => Transaccion(
         id: id,
         usuarioId: usuarioId,
         cuentaFinancieraId: cuentaFinancieraId,
-        categoriaId: null,
+        categoriaId: nuevaCategoriaId,
         identificadorExterno: identificadorExterno,
         codigoComercio: codigoComercio,
         nombreComercio: nombreComercio,
@@ -64,6 +64,9 @@ class Transaccion {
         fechaTransaccion: fechaTransaccion,
         origen: origen,
         fechaRegistro: fechaRegistro,
-        fechaActualizacion: fechaActualizacion,
+        fechaActualizacion: DateTime.now(),
       );
+
+  /// Copia sin categoría (cuando se elimina su categoría).
+  Transaccion sinCategoria() => conCategoria(null);
 }

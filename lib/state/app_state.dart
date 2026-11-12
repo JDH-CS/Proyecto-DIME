@@ -3,15 +3,20 @@ import 'dart:collection';
 
 import 'package:flutter/material.dart';
 
+import '../core/constants/merchant_defaults.dart';
 import '../core/theme/app_theme.dart';
 import '../core/utils/ids.dart';
 import '../core/utils/ui_helpers.dart';
 import '../data/models/categoria.dart';
+import '../data/models/conexion_bancaria.dart';
+import '../data/models/cuenta_financiera.dart';
 import '../data/models/perfil.dart';
 import '../data/models/presupuesto.dart';
 import '../data/models/resumen.dart';
 import '../data/models/transaccion.dart';
 import '../data/repositories/dime_repository.dart';
+import '../data/services/bank_api.dart';
+import '../data/services/bank_token_store.dart';
 
 enum CategoriaOrden {
   personalizado('Orden manual'),
@@ -25,36 +30,47 @@ enum CategoriaOrden {
   final String label;
 }
 
-/// Estado global (Provider). Los datos vienen de Supabase vía [DimeRepository].
+/// Estado global (Provider). Los datos vienen de Supabase vía [DimeRepository]
+/// y del banco simulado vía [BankApi].
 ///
-/// Los cambios se aplican primero en pantalla (respuesta inmediata) y se guardan
-/// en Supabase en segundo plano, en orden. Si algo falla, se recargan los datos reales.
+/// Los cambios simples (categorías, asignaciones, transacciones manuales) se
+/// aplican primero en pantalla y se guardan en Supabase en segundo plano, en
+/// orden. Si algo falla, se recargan los datos reales.
 class AppState extends ChangeNotifier {
   final DimeRepository _repo = DimeRepository();
+  final BankApi _bank = BankApi();
 
   Perfil? _perfil;
   Presupuesto? _presupuesto;
   List<Categoria> _categorias = [];
+  List<Categoria> _categoriasIngreso = [];
   List<Transaccion> _transacciones = [];
   List<AsignacionPresupuestaria> _asignaciones = [];
+  ConexionBancaria? _conexion;
+  List<CuentaFinanciera> _cuentas = [];
+  Map<String, String> _reglas = {};
   CategoriaOrden _orden = CategoriaOrden.personalizado;
   Future<void> _cola = Future.value();
+  bool _sincronizando = false;
 
-  /// PENDIENTE: el patrimonio neto real saldrá de las cuentas financieras
-  /// (Mockoon). Mientras tanto es una serie fija de demostración.
+  /// PENDIENTE: el patrimonio neto real saldrá de las cuentas financieras.
+  /// Mientras tanto es una serie fija de demostración.
   static const List<double> _patrimonioDemo = [
     1200, 1650, 2300, 2150, 2700, 2700, 3250, 3100, 3800, 4300, 4950, 5750,
   ];
 
   // ───────────────────────── Carga ─────────────────────────
-  /// Descarga todos los datos del usuario logueado.
   Future<void> cargar() async {
     final d = await _repo.cargarTodo();
     _perfil = d.perfil;
     _presupuesto = d.presupuesto;
     _categorias = [...d.categorias];
+    _categoriasIngreso = [...d.categoriasIngreso];
     _asignaciones = [...d.asignaciones];
     _transacciones = [...d.transacciones];
+    _conexion = d.conexion;
+    _cuentas = [...d.cuentas];
+    _reglas = {...d.reglas};
     _orden = CategoriaOrden.personalizado;
     notifyListeners();
   }
@@ -65,6 +81,24 @@ class AppState extends ChangeNotifier {
   Presupuesto get presupuesto => _presupuesto!;
   CategoriaOrden get orden => _orden;
   UnmodifiableListView<Categoria> get categorias => UnmodifiableListView(_categorias);
+  UnmodifiableListView<Categoria> get categoriasIngreso =>
+      UnmodifiableListView(_categoriasIngreso);
+
+  ConexionBancaria? get conexion => _conexion;
+  UnmodifiableListView<CuentaFinanciera> get cuentas => UnmodifiableListView(_cuentas);
+  bool get bancoVinculado => _conexion?.conectada ?? false;
+  bool get sincronizando => _sincronizando;
+
+  /// Movimientos de ingreso/gasto que todavía no tienen categoría.
+  List<Transaccion> get transaccionesPendientes {
+    final l = _transacciones
+        .where((t) =>
+            t.categoriaId == null &&
+            (t.tipoTransaccion == 'gasto' || t.tipoTransaccion == 'ingreso'))
+        .toList();
+    l.sort((a, b) => a.fechaTransaccion.compareTo(b.fechaTransaccion));
+    return l;
+  }
 
   DateTime get mesActual {
     final n = DateTime.now();
@@ -93,6 +127,44 @@ class AppState extends ChangeNotifier {
 
   /// Dinero que entró este mes y aún no está asignado a ninguna categoría.
   double get dineroParaAsignar => ingresosMes - totalAsignado;
+
+  Categoria? categoriaPorId(String? id) {
+    if (id == null) return null;
+    for (final c in _categorias) {
+      if (c.id == id) return c;
+    }
+    for (final c in _categoriasIngreso) {
+      if (c.id == id) return c;
+    }
+    return null;
+  }
+
+  CuentaFinanciera? cuentaPorId(String? id) {
+    if (id == null) return null;
+    for (final c in _cuentas) {
+      if (c.id == id) return c;
+    }
+    return null;
+  }
+
+  /// Categoría sugerida para una transacción: primero la regla del usuario
+  /// (comercio -> categoría), luego los comercios conocidos de fábrica.
+  Categoria? sugerencia(Transaccion t) {
+    final codigo = t.codigoComercio;
+    if (codigo == null) return null;
+
+    final reglaId = _reglas[codigo];
+    final porRegla = categoriaPorId(reglaId);
+    if (porRegla != null) return porRegla;
+
+    final nombre = MerchantDefaults.categoriaPorCodigo[codigo];
+    if (nombre == null) return null;
+    final lista = t.tipoTransaccion == 'ingreso' ? _categoriasIngreso : _categorias;
+    for (final c in lista) {
+      if (c.nombre.toLowerCase() == nombre.toLowerCase()) return c;
+    }
+    return null;
+  }
 
   // ───────────────────────── Dashboard ─────────────────────────
   List<DateTime> ultimosMeses(int n) {
@@ -129,7 +201,7 @@ class AppState extends ChangeNotifier {
     ];
   }
 
-  // ───────────────────────── Acciones ─────────────────────────
+  // ───────────────────────── Categorías ─────────────────────────
   void reordenar(int oldIndex, int newIndex) {
     // newIndex ya viene ajustado (onReorderItem).
     final c = _categorias.removeAt(oldIndex);
@@ -233,6 +305,147 @@ class AppState extends ChangeNotifier {
     notifyListeners();
 
     _encolar(() => _repo.eliminarCategoria(id));
+  }
+
+  // ───────────────────────── Transacciones ─────────────────────────
+  /// Asigna una categoría a una transacción. Si [recordar] es true, guarda la
+  /// regla "este comercio -> esta categoría" para las próximas veces.
+  void asignarCategoriaTransaccion(Transaccion t, Categoria c, {bool recordar = false}) {
+    final i = _transacciones.indexWhere((x) => x.id == t.id);
+    if (i != -1) _transacciones[i] = _transacciones[i].conCategoria(c.id);
+
+    final codigo = t.codigoComercio;
+    final nombreComercio = t.nombreComercio;
+    final uid = _perfil!.id;
+    if (recordar && codigo != null) _reglas[codigo] = c.id;
+    notifyListeners();
+
+    _encolar(() async {
+      await _repo.asignarCategoria(t.id, c.id);
+      if (recordar && codigo != null) {
+        await _repo.guardarRegla(
+          usuarioId: uid,
+          codigo: codigo,
+          nombre: nombreComercio,
+          categoriaId: c.id,
+        );
+      }
+    });
+  }
+
+  void addTransaccionManual({
+    required String tipo, // 'gasto' | 'ingreso'
+    required double monto,
+    required String descripcion,
+    required Categoria categoria,
+    required DateTime fecha,
+  }) {
+    final now = DateTime.now();
+    final t = Transaccion(
+      id: nuevoUuid(),
+      usuarioId: _perfil!.id,
+      cuentaFinancieraId: null,
+      categoriaId: categoria.id,
+      identificadorExterno: null,
+      codigoComercio: null,
+      nombreComercio: null,
+      descripcion: descripcion,
+      tipoTransaccion: tipo,
+      monto: monto,
+      fechaTransaccion: fecha,
+      origen: 'manual',
+      fechaRegistro: now,
+      fechaActualizacion: now,
+    );
+    _transacciones.add(t);
+    notifyListeners();
+
+    _encolar(() => _repo.insertarTransaccionManual(t));
+  }
+
+  // ───────────────────────── Banco simulado ─────────────────────────
+  /// Flujo OAuth simulado completo: autorizar -> token -> cuentas -> guardar en Supabase.
+  Future<void> vincularBanco({required String codigo, required String nombre}) async {
+    final uid = _perfil!.id;
+    final authCode = await _bank.authorize(codigo);
+    final tokens = await _bank.exchangeCode(authCode);
+    final cuentasDto = await _bank.accounts(tokens.accessToken);
+
+    await BankTokenStore.guardar(uid, tokens);
+    final conexion = await _repo.guardarConexion(usuarioId: uid, codigo: codigo, nombre: nombre);
+    final cuentas = await _repo.guardarCuentas(conexion.id, cuentasDto);
+
+    _conexion = conexion;
+    _cuentas = cuentas;
+    notifyListeners();
+  }
+
+  /// Pide al banco los movimientos nuevos y los guarda sin categoría.
+  /// Devuelve solo los que realmente son nuevos.
+  Future<List<Transaccion>> sincronizarBanco() async {
+    final conexion = _conexion;
+    if (conexion == null || !conexion.conectada) {
+      throw const BankApiException('No hay un banco vinculado.');
+    }
+    if (_sincronizando) return [];
+    _sincronizando = true;
+    notifyListeners();
+
+    try {
+      final uid = _perfil!.id;
+      final cursor = await _repo.ultimoCursor();
+      final res = await _conTokenValido((token) => _bank.sync(token, cursor: cursor));
+
+      final porExterno = {for (final c in _cuentas) c.identificadorExterno: c.id};
+      final nuevas = await _repo.insertarTransaccionesBanco(uid, porExterno, res.added);
+      await _repo.marcarSincronizacion(conexion.id);
+
+      _transacciones.addAll(nuevas);
+      _conexion = conexion.copyWith(ultimaSincronizacion: DateTime.now());
+      return nuevas;
+    } finally {
+      _sincronizando = false;
+      notifyListeners();
+    }
+  }
+
+  /// Revoca el acceso: avisa al banco (si responde), marca la conexión como
+  /// revocada y borra los tokens del dispositivo.
+  Future<void> desvincularBanco() async {
+    final conexion = _conexion;
+    if (conexion == null) return;
+    final uid = _perfil!.id;
+
+    try {
+      await _conTokenValido((token) => _bank.revoke(token));
+    } catch (_) {
+      // Si el banco simulado no responde, igual desvinculamos de nuestro lado.
+    }
+    await _repo.revocarConexion(conexion.id);
+    await BankTokenStore.borrar(uid);
+
+    _conexion = conexion.copyWith(estado: 'revocada');
+    notifyListeners();
+  }
+
+  /// Ejecuta [op] con el access token; si el banco responde 401, renueva el
+  /// token con el refresh token y reintenta una vez.
+  Future<T> _conTokenValido<T>(Future<T> Function(String token) op) async {
+    final uid = _perfil!.id;
+    var tokens = await BankTokenStore.leer(uid);
+    if (tokens == null) {
+      throw const BankApiException(
+        'No encontramos tu sesión bancaria en este dispositivo. Vincula tu banco de nuevo.',
+      );
+    }
+    try {
+      return await op(tokens.accessToken);
+    } on BankApiException catch (e) {
+      if (e.statusCode != 401) rethrow;
+      tokens = await _bank.refresh(tokens.refreshToken);
+      await BankTokenStore.guardar(uid, tokens);
+      return await op(tokens.accessToken);
+    }
   }
 
   // ───────────────────────── Privado ─────────────────────────

@@ -14,6 +14,8 @@ import '../../data/models/categoria.dart';
 import '../../state/app_state.dart';
 import '../profile/profile_screen.dart';
 import '../categories/quick_assign_screen.dart';
+import '../bank/bank_flow.dart';
+import '../transactions/review_transactions_sheet.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -23,6 +25,7 @@ class HomeScreen extends StatelessWidget {
     final s = context.watch<AppState>();
     final t = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
+    final pendientes = s.transaccionesPendientes;
 
     final porAsignar = s.dineroParaAsignar;
     final mensaje = porAsignar > 0
@@ -110,6 +113,31 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
 
+          if (pendientes.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            SoftCard(
+              padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.pending_actions_rounded),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      pendientes.length == 1
+                          ? '1 transacción sin categoría'
+                          : '${pendientes.length} transacciones sin categoría',
+                      style: t.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => revisarTransacciones(context, pendientes),
+                    child: const Text('Revisar'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
           // 2) Principales prioridades
           const SectionTitle(
             'Principales prioridades',
@@ -163,14 +191,18 @@ class HomeScreen extends StatelessWidget {
           // 4) Actualizar transacciones (deshabilitado)
           const SizedBox(height: 24),
           FilledButton.icon(
-            onPressed: null,
-            icon: Icon(Icons.sync_rounded),
-            label: Text('Actualizar transacciones'),
+            onPressed: () => mostrarOpcionesActualizar(context),
+            icon: const Icon(Icons.sync_rounded),
+            label: const Text('Actualizar transacciones'),
           ),
           const SizedBox(height: 8),
           Center(
-            child: Text('Disponible cuando vincules tu banco',
-                style: t.bodySmall?.copyWith(color: Colors.black45)),
+            child: Text(
+              s.bancoVinculado
+                  ? 'Banco vinculado: ${s.conexion!.nombreInstitucion}'
+                  : 'Aún no has vinculado tu banco',
+              style: t.bodySmall?.copyWith(color: Colors.black45),
+            ),
           ),
         ],
       ),

@@ -7,7 +7,7 @@
 /// Valores típicos:
 ///   Emulador de Android ......... http://10.0.2.2:3000   (valor por defecto)
 ///   Celular con USB + adb reverse  http://localhost:3000
-///   Celular por Wi-Fi ........... http://IP-DE-TU-PC:3000
+///   Celular por Wi-Fi ........... http://192.168.0.8:3000
 class BankApiConfig {
   BankApiConfig._();
 

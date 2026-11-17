@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/theme/app_theme.dart';
+import '../../core/accessibility/accessibility.dart';
+import '../../core/utils/category_color.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/category_icon_box.dart';
 import '../../core/widgets/soft_card.dart';
@@ -48,7 +50,7 @@ class CategoriesScreen extends StatelessWidget {
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
             child: Row(
               children: [
                 Expanded(child: _SortDropdown(value: s.orden, onChanged: s.ordenarPor)),
@@ -65,6 +67,16 @@ class CategoriesScreen extends StatelessWidget {
               ],
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Arrastra desde el lado izquierdo, o mantén presionada una tarjeta, para reordenar.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.black45),
+              ),
+            ),
+          ),
           Expanded(
             child: cats.isEmpty
                 ? const Center(child: Text('Aún no tienes categorías. ¡Añade la primera!'))
@@ -72,9 +84,19 @@ class CategoriesScreen extends StatelessWidget {
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                     buildDefaultDragHandles: false,
                     itemCount: cats.length,
+                    onReorderStart: (_) => HapticFeedback.mediumImpact(),
                     onReorderItem: context.read<AppState>().reordenar,
-                    proxyDecorator: (child, index, animation) =>
-                        Material(type: MaterialType.transparency, child: child),
+                    proxyDecorator: (child, index, animation) => AnimatedBuilder(
+                      animation: animation,
+                      child: child,
+                      builder: (context, c) {
+                        final t = Curves.easeOut.transform(animation.value);
+                        return Transform.scale(
+                          scale: 1 + 0.03 * t,
+                          child: Material(type: MaterialType.transparency, child: c),
+                        );
+                      },
+                    ),
                     itemBuilder: (context, i) => Padding(
                       key: ValueKey(cats[i].id),
                       padding: const EdgeInsets.only(bottom: 12),
@@ -152,77 +174,107 @@ class _CategoriaCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = context.watch<AppState>();
     final t = Theme.of(context).textTheme;
-    final cs = Theme.of(context).colorScheme;
 
+    final color = CategoryColors.of(categoria);
     final asignado = s.asignado(categoria.id);
     final gastado = s.gastado(categoria.id);
     final pct = s.porcentajeGastado(categoria.id);
     final excedido = pct > 1;
 
     return SoftCard(
-      padding: const EdgeInsets.fromLTRB(4, 12, 16, 14),
-      onTap: () => showCategoryFormSheet(context, editar: categoria),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              ReorderableDragStartListener(index: index, child: const DragGrip()),
-              CategoryIconBox(icono: categoria.icono),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(categoria.nombre,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: t.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-                    Text('Asignado: ${Fmt.moneda(asignado)}',
-                        style: t.bodySmall?.copyWith(color: Colors.black54)),
-                  ],
+      padding: EdgeInsets.zero,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ── Zona de arrastre: ocupa toda la altura de la tarjeta y NO abre la edición.
+            ReorderableDragStartListener(
+              index: index,
+              child: Container(
+                width: 52,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  border: const Border(right: BorderSide(color: Colors.black12)),
                 ),
+                child: const DragGrip(),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(Fmt.moneda(gastado),
-                      style: t.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
-                  Text('gastado', style: t.labelSmall?.copyWith(color: Colors.black45)),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Padding(
-            padding: const EdgeInsets.only(left: 12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: LinearProgressIndicator(
-                    value: pct.clamp(0.0, 1.0).toDouble(),
-                    minHeight: 8,
-                    borderRadius: BorderRadius.circular(8),
-                    backgroundColor: Colors.black12,
-                    color: excedido ? AppTheme.negative : cs.primary,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                if (excedido)
-                  const Padding(
-                    padding: EdgeInsets.only(right: 4),
-                    child: Icon(Icons.warning_amber_rounded, size: 16, color: AppTheme.negative),
-                  ),
-                Text(
-                  '${(pct * 100).toStringAsFixed(0)}%',
-                  style: t.labelMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: excedido ? AppTheme.negative : Colors.black54,
-                  ),
-                ),
-              ],
             ),
-          ),
-        ],
+
+            // ── Resto de la tarjeta: tocar = editar, mantener presionado = arrastrar.
+            Expanded(
+              child: ReorderableDelayedDragStartListener(
+                index: index,
+                child: InkWell(
+                  onTap: () => showCategoryFormSheet(context, editar: categoria),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 14, 16, 14),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            CategoryIconBox(icono: categoria.icono, color: color),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(categoria.nombre,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: t.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                                  Text('Asignado: ${Fmt.moneda(asignado)}',
+                                      style: t.bodySmall?.copyWith(color: Colors.black54)),
+                                ],
+                              ),
+                            ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(Fmt.moneda(gastado),
+                                    style: t.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+                                Text('gastado',
+                                    style: t.labelSmall?.copyWith(color: Colors.black45)),
+                              ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: LinearProgressIndicator(
+                                value: pct.clamp(0.0, 1.0).toDouble(),
+                                minHeight: 8,
+                                borderRadius: BorderRadius.circular(8),
+                                backgroundColor: color.withValues(alpha: 0.18),
+                                color: color,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            if (excedido)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 4),
+                                child: Icon(Icons.warning_amber_rounded,
+                                    size: 16, color: Accessibility.negative),
+                              ),
+                            Text(
+                              '${(pct * 100).toStringAsFixed(0)}%',
+                              style: t.labelMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: excedido ? Accessibility.negative : Colors.black54,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

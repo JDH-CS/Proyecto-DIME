@@ -9,6 +9,7 @@ import '../../core/utils/biometric_vault.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/ui_helpers.dart';
 import '../../core/utils/validators.dart';
+import '../../core/widgets/phone_field.dart';
 import '../../navigation/main_shell.dart';
 import '../../state/app_state.dart';
 
@@ -29,6 +30,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _celCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
 
+  PaisTelefono _pais = PaisesTelefono.panama;
   bool _usaPasaporte = false;
   bool _obscure = true;
   bool _cargando = false;
@@ -89,7 +91,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           'apellido': _apellidoCtrl.text.trim(),
           'fecha_nacimiento': _fechaIso(_fechaNac!),
           'documento_identidad': _docCtrl.text.trim().toUpperCase(),
-          'telefono': '+507 ${_celCtrl.text.trim()}',
+          'telefono': PaisesTelefono.unir(_pais, _celCtrl.text),
         },
       );
       if (res.session == null) {
@@ -211,18 +213,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       validator: Validators.email,
                     ),
                     const SizedBox(height: 14),
-                    TextFormField(
+                    PhoneField(
                       controller: _celCtrl,
-                      keyboardType: TextInputType.phone,
+                      pais: _pais,
                       textInputAction: TextInputAction.next,
-                      inputFormatters: [PanamaPhoneFormatter()],
-                      decoration: const InputDecoration(
-                        labelText: 'Número de celular',
-                        hintText: '6123-4567',
-                        prefixText: '+507  ',
-                        prefixIcon: Icon(Icons.phone_outlined),
-                      ),
-                      validator: Validators.celularPanama,
+                      onPaisChanged: (p) => setState(() => _pais = p),
                     ),
                     const SizedBox(height: 14),
                     TextFormField(
@@ -240,19 +235,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                       ),
                       validator: Validators.passwordRegistro,
-                    ),
-                    const SizedBox(height: 24),
-                    // Vinculación bancaria: deshabilitada hasta tener la API de Mockoon.
-                    OutlinedButton.icon(
-                      onPressed: null,
-                      icon: const Icon(Icons.account_balance_rounded),
-                      label: const Text('Vincular banco con OAuth'),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Próximamente: podrás conectar tu banco de forma segura.',
-                      textAlign: TextAlign.center,
-                      style: t.bodySmall?.copyWith(color: Colors.black45),
                     ),
                     const SizedBox(height: 24),
                     FilledButton(

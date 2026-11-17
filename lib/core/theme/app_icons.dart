@@ -24,6 +24,7 @@ class AppIcons {
     'child': Icons.child_care_rounded,
     'work': Icons.work_rounded,
     'savings': Icons.savings_rounded,
+    'casino': Icons.casino_rounded,
   };
 
   static IconData of(String key) => all[key] ?? Icons.category_rounded;

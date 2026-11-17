@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme/app_icons.dart';
-import '../../core/theme/app_theme.dart';
+import '../../core/accessibility/accessibility.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/category_icon_box.dart';
 import '../../data/models/categoria.dart';
@@ -234,7 +234,7 @@ class _InfoTransaccion extends StatelessWidget {
                 Fmt.monedaConSigno(esIngreso ? tx.monto : -tx.monto),
                 style: t.titleMedium?.copyWith(
                   fontWeight: FontWeight.w800,
-                  color: esIngreso ? AppTheme.positive : null,
+                  color: esIngreso ? Accessibility.positive : null,
                 ),
               ),
             ],

@@ -3,9 +3,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/config/supabase_config.dart';
 import '../../core/widgets/soft_card.dart';
+import '../accessibility/accessibility_screen.dart';
+import '../account/account_screen.dart';
 import '../auth/login_screen.dart';
-import '../profile/profile_screen.dart';
 import '../bank/bank_account_screen.dart';
+import '../profile/profile_screen.dart';
+import '../report/report_sheet.dart';
+import '../support/support_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -19,6 +23,9 @@ class SettingsScreen extends StatelessWidget {
       (route) => false,
     );
   }
+
+  void _abrir(BuildContext context, Widget pantalla) =>
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => pantalla));
 
   @override
   Widget build(BuildContext context) {
@@ -35,40 +42,45 @@ class SettingsScreen extends StatelessWidget {
                 _SettingsTile(
                   icon: Icons.person_outline_rounded,
                   title: 'Administrar perfil',
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const ProfileScreen()),
-                  ),
+                  onTap: () => _abrir(context, const ProfileScreen()),
                 ),
                 const Divider(indent: 16, endIndent: 16),
-                const _SettingsTile(
+                _SettingsTile(
                   icon: Icons.manage_accounts_outlined,
                   title: 'Administrar cuenta de DIME',
+                  onTap: () => _abrir(context, const AccountScreen()),
                 ),
                 const Divider(indent: 16, endIndent: 16),
                 _SettingsTile(
                   icon: Icons.account_balance_outlined,
                   title: 'Administrar cuenta bancaria',
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const BankAccountScreen()),
-                  ),
+                  onTap: () => _abrir(context, const BankAccountScreen()),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 8),
           const _SectionLabel('Funciones y preferencias'),
-          const SoftCard(
-            padding: EdgeInsets.symmetric(vertical: 4),
+          SoftCard(
+            padding: const EdgeInsets.symmetric(vertical: 4),
             child: Column(
               children: [
                 _SettingsTile(
                   icon: Icons.description_outlined,
                   title: 'Generar informe financiero',
+                  onTap: () => mostrarInformeSheet(context),
                 ),
-                Divider(indent: 16, endIndent: 16),
+                const Divider(indent: 16, endIndent: 16),
                 _SettingsTile(
                   icon: Icons.accessibility_new_rounded,
                   title: 'Accesibilidad',
+                  onTap: () => _abrir(context, const AccessibilityScreen()),
+                ),
+                const Divider(indent: 16, endIndent: 16),
+                _SettingsTile(
+                  icon: Icons.support_agent_rounded,
+                  title: 'Ayuda y soporte',
+                  onTap: () => _abrir(context, const SupportScreen()),
                 ),
               ],
             ),

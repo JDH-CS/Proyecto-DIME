@@ -12,10 +12,12 @@ class ProfileAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final url = perfil.fotoUrl;
     return CircleAvatar(
       radius: radius,
       backgroundColor: cs.surfaceContainerHighest,
-      foregroundImage: perfil.fotoUrl != null ? NetworkImage(perfil.fotoUrl!) : null,
+      foregroundImage: url != null ? NetworkImage(url) : null,
+      onForegroundImageError: url != null ? (error, stack) {} : null,
       child: Icon(Icons.person_rounded, size: radius * 1.1, color: cs.onSurfaceVariant),
     );
   }

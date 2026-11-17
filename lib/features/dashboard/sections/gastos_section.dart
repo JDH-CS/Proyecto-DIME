@@ -4,6 +4,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/utils/category_color.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/soft_card.dart';
 import '../../../data/models/categoria.dart';
@@ -47,7 +48,7 @@ class _GastosSectionState extends State<GastosSection> {
         if ((porCat[c.id] ?? 0) > 0)
           PieChartSectionData(
             value: porCat[c.id]!,
-            color: Color(c.color),
+            color: CategoryColors.of(c),
             radius: 34,
             showTitle: false,
           ),
@@ -152,7 +153,9 @@ class _GastosSectionState extends State<GastosSection> {
               Wrap(
                 spacing: 14,
                 runSpacing: 8,
-                children: [for (final c in cats) LegendDot(color: Color(c.color), label: c.nombre)],
+                children: [
+                  for (final c in cats) LegendDot(color: CategoryColors.of(c), label: c.nombre),
+                ],
               ),
             ],
           ),
@@ -219,7 +222,7 @@ class _GastosSectionState extends State<GastosSection> {
                         width: 12,
                         height: 12,
                         decoration: BoxDecoration(
-                          color: Color(c.color),
+                          color: CategoryColors.of(c),
                           borderRadius: BorderRadius.circular(4),
                           border: Border.all(color: Colors.black12),
                         ),
@@ -257,7 +260,7 @@ class _GastosSectionState extends State<GastosSection> {
     for (final c in cats) {
       final v = porCategoria[c.id] ?? 0;
       if (v <= 0) continue;
-      items.add(BarChartRodStackItem(from, from + v, Color(c.color)));
+      items.add(BarChartRodStackItem(from, from + v, CategoryColors.of(c)));
       from += v;
     }
     return items;

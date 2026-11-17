@@ -3,7 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/theme/app_theme.dart';
+import '../../core/accessibility/accessibility.dart';
+import '../../core/utils/category_color.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/category_icon_box.dart';
 import '../../core/widgets/dime_logo.dart';
@@ -12,9 +13,9 @@ import '../../core/widgets/section_title.dart';
 import '../../core/widgets/soft_card.dart';
 import '../../data/models/categoria.dart';
 import '../../state/app_state.dart';
-import '../profile/profile_screen.dart';
-import '../categories/quick_assign_screen.dart';
 import '../bank/bank_flow.dart';
+import '../categories/quick_assign_screen.dart';
+import '../profile/profile_screen.dart';
 import '../transactions/review_transactions_sheet.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -113,6 +114,7 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
 
+          // Aviso de transacciones sin categoría
           if (pendientes.isNotEmpty) ...[
             const SizedBox(height: 12),
             SoftCard(
@@ -188,7 +190,7 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
 
-          // 4) Actualizar transacciones (deshabilitado)
+          // 4) Actualizar transacciones
           const SizedBox(height: 24),
           FilledButton.icon(
             onPressed: () => mostrarOpcionesActualizar(context),
@@ -210,6 +212,7 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
+/// Fila de una categoría prioritaria, con los mismos colores que en Categorías.
 class _PrioridadRow extends StatelessWidget {
   const _PrioridadRow({required this.categoria});
 
@@ -219,6 +222,7 @@ class _PrioridadRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = context.watch<AppState>();
     final t = Theme.of(context).textTheme;
+    final color = CategoryColors.of(categoria);
     final disp = s.disponible(categoria.id);
     final pct = s.porcentajeGastado(categoria.id).clamp(0.0, 1.0).toDouble();
     final excedido = disp < 0;
@@ -227,23 +231,34 @@ class _PrioridadRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
         children: [
-          CategoryIconBox(icono: categoria.icono),
+          CategoryIconBox(icono: categoria.icono, color: color),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(categoria.nombre,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: t.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(categoria.nombre,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: t.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                    ),
+                    if (excedido) ...[
+                      const SizedBox(width: 4),
+                      Icon(Icons.warning_amber_rounded,
+                          size: 16, color: Accessibility.negative),
+                    ],
+                  ],
+                ),
                 const SizedBox(height: 8),
                 LinearProgressIndicator(
                   value: pct,
                   minHeight: 6,
                   borderRadius: BorderRadius.circular(6),
-                  backgroundColor: Colors.black12,
-                  color: excedido ? AppTheme.negative : Theme.of(context).colorScheme.primary,
+                  backgroundColor: color.withValues(alpha: 0.18),
+                  color: color,
                 ),
               ],
             ),
@@ -256,7 +271,7 @@ class _PrioridadRow extends StatelessWidget {
                 Fmt.moneda(disp),
                 style: t.titleSmall?.copyWith(
                   fontWeight: FontWeight.w800,
-                  color: excedido ? AppTheme.negative : null,
+                  color: excedido ? Accessibility.negative : null,
                 ),
               ),
               Text('disponible', style: t.labelSmall?.copyWith(color: Colors.black45)),

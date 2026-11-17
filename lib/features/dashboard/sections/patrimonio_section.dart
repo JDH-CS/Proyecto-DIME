@@ -4,7 +4,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../../core/theme/app_theme.dart';
+import '../../../core/accessibility/accessibility.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/soft_card.dart';
 import '../../../state/app_state.dart';
@@ -15,22 +15,30 @@ class PatrimonioSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final data = context.watch<AppState>().patrimonio;
+    final s = context.watch<AppState>();
+    final data = s.patrimonio;
     final t = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
 
-    final inicio = data.first.valor;
+    final positivo = Accessibility.positive;
+    final negativo = Accessibility.negative;
+
     final actual = data.last.valor;
-    final cambioTotal = actual - inicio;
-    final cambioColor = cambioTotal > 0
-        ? AppTheme.positive
-        : cambioTotal < 0
-            ? AppTheme.negative
+    final cambioTotal = data.fold(0.0, (a, d) => a + d.cambio);
+    final cambioColor = cambioTotal > 0.004
+        ? positivo
+        : cambioTotal < -0.004
+            ? negativo
             : Colors.black54;
 
     final minV = data.map((d) => d.valor).reduce(math.min);
     final maxV = data.map((d) => d.valor).reduce(math.max);
     final ultimo = data.length - 1;
+    final margen = math.max(100.0, (maxV - minV) * 0.15);
+
+    final origen = s.patrimonioDesdeBanco
+        ? 'Calculado con los saldos de tu banco'
+        : 'Calculado con tus ingresos y gastos registrados';
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
@@ -41,8 +49,7 @@ class PatrimonioSection extends StatelessWidget {
             children: [
               Text('Evolución del patrimonio neto',
                   style: t.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-              Text('Desde que empezaste a usar DIME',
-                  style: t.bodySmall?.copyWith(color: Colors.black54)),
+              Text(origen, style: t.bodySmall?.copyWith(color: Colors.black54)),
               const SizedBox(height: 20),
               SizedBox(
                 height: 190,
@@ -51,69 +58,81 @@ class PatrimonioSection extends StatelessWidget {
                     // Gráfica de línea (izquierda)
                     Expanded(
                       flex: 3,
-                      child: LineChart(
-                        LineChartData(
-                          minY: math.max(0.0, minV - 400),
-                          maxY: maxV + 400,
-                          gridData: const FlGridData(show: false),
-                          borderData: FlBorderData(show: false),
-                          titlesData: FlTitlesData(
-                            leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                            bottomTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                interval: 1,
-                                reservedSize: 28,
-                                getTitlesWidget: (v, meta) {
-                                  final i = v.toInt();
-                                  if (i < 0 || i > ultimo || (ultimo - i) % 3 != 0) {
-                                    return const SizedBox.shrink();
-                                  }
-                                  return Padding(
-                                    padding: const EdgeInsets.only(top: 8),
-                                    child: Text(Fmt.mesCorto(data[i].mes), style: axisStyle),
-                                  );
-                                },
+                      child: data.length < 2
+                          ? Center(
+                              child: Text(
+                                'Aún no hay suficientes meses para graficar.',
+                                textAlign: TextAlign.center,
+                                style: t.bodySmall?.copyWith(color: Colors.black45),
                               ),
-                            ),
-                          ),
-                          lineTouchData: LineTouchData(
-                            touchTooltipData: LineTouchTooltipData(
-                              getTooltipColor: (_) => Colors.black87,
-                              getTooltipItems: (spots) => [
-                                for (final s in spots)
-                                  LineTooltipItem(
-                                    '${Fmt.mesCorto(data[s.x.toInt()].mes)}\n${Fmt.moneda(s.y)}',
-                                    const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
+                            )
+                          : LineChart(
+                              LineChartData(
+                                minY: minV - margen,
+                                maxY: maxV + margen,
+                                gridData: const FlGridData(show: false),
+                                borderData: FlBorderData(show: false),
+                                titlesData: FlTitlesData(
+                                  leftTitles: const AxisTitles(
+                                      sideTitles: SideTitles(showTitles: false)),
+                                  topTitles: const AxisTitles(
+                                      sideTitles: SideTitles(showTitles: false)),
+                                  rightTitles: const AxisTitles(
+                                      sideTitles: SideTitles(showTitles: false)),
+                                  bottomTitles: AxisTitles(
+                                    sideTitles: SideTitles(
+                                      showTitles: true,
+                                      interval: 1,
+                                      reservedSize: 28,
+                                      getTitlesWidget: (v, meta) {
+                                        final i = v.toInt();
+                                        if (i < 0 || i > ultimo || (ultimo - i) % 3 != 0) {
+                                          return const SizedBox.shrink();
+                                        }
+                                        return Padding(
+                                          padding: const EdgeInsets.only(top: 8),
+                                          child: Text(Fmt.mesCorto(data[i].mes),
+                                              style: axisStyle),
+                                        );
+                                      },
                                     ),
                                   ),
-                              ],
-                            ),
-                          ),
-                          lineBarsData: [
-                            LineChartBarData(
-                              spots: [
-                                for (var i = 0; i < data.length; i++)
-                                  FlSpot(i.toDouble(), data[i].valor),
-                              ],
-                              isCurved: true,
-                              curveSmoothness: 0.25,
-                              barWidth: 3,
-                              color: cs.primary,
-                              dotData: const FlDotData(show: false),
-                              belowBarData: BarAreaData(
-                                show: true,
-                                color: cs.primary.withValues(alpha: 0.08),
+                                ),
+                                lineTouchData: LineTouchData(
+                                  touchTooltipData: LineTouchTooltipData(
+                                    getTooltipColor: (_) => Colors.black87,
+                                    getTooltipItems: (spots) => [
+                                      for (final sp in spots)
+                                        LineTooltipItem(
+                                          '${Fmt.mesCorto(data[sp.x.toInt()].mes)}\n${Fmt.moneda(sp.y)}',
+                                          const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                lineBarsData: [
+                                  LineChartBarData(
+                                    spots: [
+                                      for (var i = 0; i < data.length; i++)
+                                        FlSpot(i.toDouble(), data[i].valor),
+                                    ],
+                                    isCurved: true,
+                                    curveSmoothness: 0.25,
+                                    barWidth: 3,
+                                    color: cs.primary,
+                                    dotData: const FlDotData(show: false),
+                                    belowBarData: BarAreaData(
+                                      show: true,
+                                      color: cs.primary.withValues(alpha: 0.08),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                          ],
-                        ),
-                      ),
                     ),
                     const SizedBox(width: 16),
                     // Resumen textual (derecha)
@@ -197,12 +216,12 @@ class _CambioIndicador extends StatelessWidget {
   Widget build(BuildContext context) {
     final IconData icono;
     final Color color;
-    if (cambio > 0) {
+    if (cambio > 0.004) {
       icono = Icons.arrow_upward_rounded;
-      color = AppTheme.positive;
-    } else if (cambio < 0) {
+      color = Accessibility.positive;
+    } else if (cambio < -0.004) {
       icono = Icons.arrow_downward_rounded;
-      color = AppTheme.negative;
+      color = Accessibility.negative;
     } else {
       icono = Icons.remove_rounded;
       color = Colors.grey;

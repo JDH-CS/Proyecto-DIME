@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../features/categories/categories_screen.dart';
 import '../features/dashboard/dashboard_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/settings/settings_screen.dart';
+import '../features/tour/tour_prefs.dart';
+import '../features/tour/tour_screen.dart';
+import '../state/app_state.dart';
 
 /// Contenedor con la barra de navegación inferior (NavigationBar de Material 3,
-/// el sucesor visual de BottomNavigationBar).
+/// el sucesor visual de BottomNavigationBar). Muestra el tour a los usuarios nuevos.
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
 
@@ -23,6 +27,22 @@ class _MainShellState extends State<MainShell> {
     DashboardScreen(),
     SettingsScreen(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _mostrarTourSiCorresponde());
+  }
+
+  Future<void> _mostrarTourSiCorresponde() async {
+    if (!mounted) return;
+    final uid = context.read<AppState>().perfil.id;
+    if (await TourPrefs.completado(uid)) return;
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(fullscreenDialog: true, builder: (_) => TourScreen(userId: uid)),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {

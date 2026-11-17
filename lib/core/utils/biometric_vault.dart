@@ -20,4 +20,10 @@ class BiometricVault {
     if (email == null || pass == null) return null;
     return (email: email, password: pass);
   }
+
+  /// Desactiva el inicio con huella en este dispositivo.
+  static Future<void> borrar() async {
+    await _storage.delete(key: _kEmail);
+    await _storage.delete(key: _kPass);
+  }
 }

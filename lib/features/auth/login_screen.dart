@@ -11,6 +11,7 @@ import '../../core/utils/validators.dart';
 import '../../core/widgets/dime_logo.dart';
 import '../../navigation/main_shell.dart';
 import '../../state/app_state.dart';
+import 'forgot_password_screen.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -156,7 +157,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
-                        onPressed: () => showSoon(context),
+                        onPressed: _cargando
+                            ? null
+                            : () => Navigator.of(context).push(MaterialPageRoute(
+                                  builder: (_) => ForgotPasswordScreen(emailInicial: _emailCtrl.text.trim()),
+                                )),
                         child: const Text('¿Olvidaste tu contraseña?'),
                       ),
                     ),

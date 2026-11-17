@@ -10,8 +10,9 @@ enum EstadoPerfil {
       };
 }
 
-/// Tabla perfiles. El correo viene de auth.users (se pasa aparte);
-/// fotoUrl se conectará a Supabase Storage más adelante.
+/// Tabla perfiles. El correo viene de auth.users (se pasa aparte).
+/// [fotoRuta] es la ruta del archivo en Storage (pfoto_ruta);
+/// [fotoUrl] es la URL firmada temporal para mostrarla.
 class Perfil {
   const Perfil({
     required this.id,
@@ -24,6 +25,7 @@ class Perfil {
     required this.fechaActualizacion,
     required this.correo,
     required this.celular,
+    this.fotoRuta,
     this.fotoUrl,
   });
 
@@ -38,11 +40,12 @@ class Perfil {
 
   final String correo;
   final String celular;
+  final String? fotoRuta;
   final String? fotoUrl;
 
   String get nombreCompleto => '$nombre $apellido';
 
-  factory Perfil.fromMap(Map<String, dynamic> m, {required String correo}) => Perfil(
+  factory Perfil.fromMap(Map<String, dynamic> m, {required String correo, String? fotoUrl}) => Perfil(
         id: m['pid'] as String,
         nombre: m['pnombre'] as String,
         apellido: m['papellido'] as String,
@@ -56,5 +59,31 @@ class Perfil {
         fechaActualizacion: DateTime.parse(m['pfecha_actualizacion'] as String).toLocal(),
         correo: correo,
         celular: (m['ptelefono'] as String?) ?? '—',
+        fotoRuta: m['pfoto_ruta'] as String?,
+        fotoUrl: fotoUrl,
+      );
+
+  Perfil copyWith({
+    String? nombre,
+    String? apellido,
+    DateTime? fechaNacimiento,
+    String? celular,
+    String? fotoRuta,
+    String? fotoUrl,
+    bool quitarFoto = false,
+  }) =>
+      Perfil(
+        id: id,
+        nombre: nombre ?? this.nombre,
+        apellido: apellido ?? this.apellido,
+        fechaNacimiento: fechaNacimiento ?? this.fechaNacimiento,
+        documentoIdentidad: documentoIdentidad,
+        estado: estado,
+        fechaCreacion: fechaCreacion,
+        fechaActualizacion: DateTime.now(),
+        correo: correo,
+        celular: celular ?? this.celular,
+        fotoRuta: quitarFoto ? null : (fotoRuta ?? this.fotoRuta),
+        fotoUrl: quitarFoto ? null : (fotoUrl ?? this.fotoUrl),
       );
 }

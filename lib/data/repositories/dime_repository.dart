@@ -100,7 +100,7 @@ class DimeRepository {
         await supabase.from('reglas_comercio').select('rccodigo_comercio, rccategoria_id');
 
     return DatosUsuario(
-      perfil: Perfil.fromMap(perfilRow, correo: user.email ?? ''),
+      perfil: await _perfilConFoto(perfilRow, user.email ?? ''),
       categorias: [for (final r in catRows) Categoria.fromMap(r)],
       categoriasIngreso: [for (final r in ingRows) Categoria.fromMap(r)],
       presupuesto: presupuesto,
@@ -113,6 +113,18 @@ class DimeRepository {
           r['rccodigo_comercio'] as String: r['rccategoria_id'] as String,
       },
     );
+  }
+
+  Future<Perfil> _perfilConFoto(Map<String, dynamic> row, String correo) async 
+  {
+    final ruta = row['pfoto_ruta'] as String?;
+    String? url;
+    if (ruta != null) {
+      try {
+        url = await supabase.storage.from('avatars').createSignedUrl(ruta, 86400);
+      } catch (_) {}
+    }
+    return Perfil.fromMap(row, correo: correo, fotoUrl: url);
   }
 
   /// Devuelve el presupuesto que cubre hoy. Si no existe (cambió el mes),

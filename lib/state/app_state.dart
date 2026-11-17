@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -53,12 +54,6 @@ class AppState extends ChangeNotifier {
   Future<void> _cola = Future.value();
   bool _sincronizando = false;
 
-  /// PENDIENTE: el patrimonio neto real saldrá de las cuentas financieras.
-  /// Mientras tanto es una serie fija de demostración.
-  static const List<double> _patrimonioDemo = [
-    1200, 1650, 2300, 2150, 2700, 2700, 3250, 3100, 3800, 4300, 4950, 5750,
-  ];
-
   // ───────────────────────── Carga ─────────────────────────
   Future<void> cargar() async {
     final d = await _repo.cargarTodo();
@@ -72,6 +67,12 @@ class AppState extends ChangeNotifier {
     _cuentas = [...d.cuentas];
     _reglas = {...d.reglas};
     _orden = CategoriaOrden.personalizado;
+    notifyListeners();
+  }
+
+  /// Reemplaza el perfil en memoria (lo usa CuentaService al editar datos o la foto).
+  void reemplazarPerfil(Perfil p) {
+    _perfil = p;
     notifyListeners();
   }
 
@@ -98,6 +99,13 @@ class AppState extends ChangeNotifier {
         .toList();
     l.sort((a, b) => a.fechaTransaccion.compareTo(b.fechaTransaccion));
     return l;
+  }
+
+  /// Transacciones desde el inicio del mes más antiguo de un periodo de [meses] meses.
+  List<Transaccion> transaccionesDelPeriodo(int meses) {
+    final ahora = DateTime.now();
+    final desde = DateTime(ahora.year, ahora.month - (meses - 1), 1);
+    return _transacciones.where((t) => !t.fechaTransaccion.isBefore(desde)).toList();
   }
 
   DateTime get mesActual {
@@ -153,8 +161,7 @@ class AppState extends ChangeNotifier {
     final codigo = t.codigoComercio;
     if (codigo == null) return null;
 
-    final reglaId = _reglas[codigo];
-    final porRegla = categoriaPorId(reglaId);
+    final porRegla = categoriaPorId(_reglas[codigo]);
     if (porRegla != null) return porRegla;
 
     final nombre = MerchantDefaults.categoriaPorCodigo[codigo];
@@ -189,15 +196,69 @@ class AppState extends ChangeNotifier {
           ),
       ];
 
+  // ───────────────────────── Patrimonio neto ─────────────────────────
+  /// true si el patrimonio se calcula con los saldos reales de las cuentas vinculadas.
+  bool get patrimonioDesdeBanco => bancoVinculado && _cuentas.isNotEmpty;
+
+  /// Saldo de las cuentas vinculadas: corriente/ahorros suman, tarjetas de crédito restan.
+  double get saldoCuentas => _cuentas.fold(
+        0.0,
+        (s, c) => s + (c.esTarjeta ? -c.saldoActual : c.saldoActual),
+      );
+
+  double _flujoNeto(Transaccion t) => switch (t.tipoTransaccion) {
+        'ingreso' => t.monto,
+        'gasto' => -t.monto,
+        _ => 0.0,
+      };
+
+  /// Patrimonio neto al cierre de cada mes, desde el primer mes con datos.
+  ///
+  /// - Con banco vinculado: se parte del saldo real de las cuentas (mes actual)
+  ///   y se reconstruyen los meses anteriores restando el flujo neto posterior.
+  /// - Sin banco: es el acumulado de ingresos menos gastos registrados.
+  /// El "cambio" de cada mes es su flujo neto (ingresos - gastos).
   List<PatrimonioMensual> get patrimonio {
-    final meses = ultimosMeses(_patrimonioDemo.length);
+    final mesAct = mesActual;
+    var primero = mesAct;
+    for (final t in _transacciones) {
+      final m = DateTime(t.fechaTransaccion.year, t.fechaTransaccion.month);
+      if (m.isBefore(primero)) primero = m;
+    }
+    final meses = math.max(
+      1,
+      math.min(12, (mesAct.year - primero.year) * 12 + (mesAct.month - primero.month) + 1),
+    );
+    final lista = ultimosMeses(meses);
+
+    final flujo = List<double>.filled(meses, 0);
+    for (final t in _transacciones) {
+      for (var i = 0; i < meses; i++) {
+        final m = lista[i];
+        if (t.fechaTransaccion.year == m.year && t.fechaTransaccion.month == m.month) {
+          flujo[i] += _flujoNeto(t);
+          break;
+        }
+      }
+    }
+
+    final valores = List<double>.filled(meses, 0);
+    if (patrimonioDesdeBanco) {
+      valores[meses - 1] = saldoCuentas;
+      for (var i = meses - 2; i >= 0; i--) {
+        valores[i] = valores[i + 1] - flujo[i + 1];
+      }
+    } else {
+      var acumulado = 0.0;
+      for (var i = 0; i < meses; i++) {
+        acumulado += flujo[i];
+        valores[i] = acumulado;
+      }
+    }
+
     return [
-      for (var i = 0; i < meses.length; i++)
-        PatrimonioMensual(
-          mes: meses[i],
-          valor: _patrimonioDemo[i],
-          cambio: i == 0 ? 0 : _patrimonioDemo[i] - _patrimonioDemo[i - 1],
-        ),
+      for (var i = 0; i < meses; i++)
+        PatrimonioMensual(mes: lista[i], valor: valores[i], cambio: flujo[i]),
     ];
   }
 
@@ -381,7 +442,8 @@ class AppState extends ChangeNotifier {
   }
 
   /// Pide al banco los movimientos nuevos y los guarda sin categoría.
-  /// Devuelve solo los que realmente son nuevos.
+  /// También refresca los saldos de las cuentas (para el patrimonio neto).
+  /// Devuelve solo los movimientos que realmente son nuevos.
   Future<List<Transaccion>> sincronizarBanco() async {
     final conexion = _conexion;
     if (conexion == null || !conexion.conectada) {
@@ -399,6 +461,12 @@ class AppState extends ChangeNotifier {
       final porExterno = {for (final c in _cuentas) c.identificadorExterno: c.id};
       final nuevas = await _repo.insertarTransaccionesBanco(uid, porExterno, res.added);
       await _repo.marcarSincronizacion(conexion.id);
+
+      // Saldos actualizados (si falla, la sincronización de movimientos igual cuenta).
+      try {
+        final cuentasDto = await _conTokenValido((token) => _bank.accounts(token));
+        _cuentas = await _repo.guardarCuentas(conexion.id, cuentasDto);
+      } catch (_) {}
 
       _transacciones.addAll(nuevas);
       _conexion = conexion.copyWith(ultimaSincronizacion: DateTime.now());

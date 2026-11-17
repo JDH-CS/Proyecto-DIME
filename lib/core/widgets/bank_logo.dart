@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Logo del banco desde assets/banks/<logoKey>.png.
+/// Logo del banco desde assets/banks/(logoKey).png
 /// Si el archivo no existe, muestra las iniciales del banco.
 class BankLogo extends StatelessWidget {
   const BankLogo({super.key, required this.logoKey, required this.nombre, this.size = 48});

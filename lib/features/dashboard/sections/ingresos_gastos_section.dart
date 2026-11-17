@@ -4,7 +4,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../../core/theme/app_theme.dart';
+import '../../../core/accessibility/accessibility.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/soft_card.dart';
 import '../../../state/app_state.dart';
@@ -26,6 +26,10 @@ class _IngresosGastosSectionState extends State<IngresosGastosSection> {
     final data = context.watch<AppState>().ingresosVsGastos(_meses);
     final t = Theme.of(context).textTheme;
 
+    // Colores según el modo de accesibilidad (verde/rojo, o azul/naranja para daltonismo)
+    final colorIngreso = Accessibility.positive;
+    final colorGasto = Accessibility.negative;
+
     final promIngresos = data.fold(0.0, (a, d) => a + d.ingresos) / data.length;
     final promGastos = data.fold(0.0, (a, d) => a + d.gastos) / data.length;
     final diferencia = promIngresos - promGastos;
@@ -43,9 +47,9 @@ class _IngresosGastosSectionState extends State<IngresosGastosSection> {
             ? 'En promedio, estás gastando más de lo que ganas. ¡Ten cuidado!'
             : 'En promedio, estás gastando lo mismo que ganas. Intenta dejar un margen.';
     final Color colorMsg = ahorra
-        ? AppTheme.positive
+        ? colorIngreso
         : excede
-            ? AppTheme.negative
+            ? colorGasto
             : Colors.black54;
     final IconData iconoMsg = ahorra
         ? Icons.trending_up_rounded
@@ -131,13 +135,13 @@ class _IngresosGastosSectionState extends State<IngresosGastosSection> {
                             BarChartRodData(
                               toY: data[i].ingresos,
                               width: barW,
-                              color: AppTheme.positive,
+                              color: colorIngreso,
                               borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
                             ),
                             BarChartRodData(
                               toY: data[i].gastos,
                               width: barW,
-                              color: AppTheme.negative,
+                              color: colorGasto,
                               borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
                             ),
                           ],
@@ -147,11 +151,11 @@ class _IngresosGastosSectionState extends State<IngresosGastosSection> {
                 ),
               ),
               const SizedBox(height: 16),
-              const Wrap(
+              Wrap(
                 spacing: 16,
                 children: [
-                  LegendDot(color: AppTheme.positive, label: 'Ingresos'),
-                  LegendDot(color: AppTheme.negative, label: 'Gastos'),
+                  LegendDot(color: colorIngreso, label: 'Ingresos'),
+                  LegendDot(color: colorGasto, label: 'Gastos'),
                 ],
               ),
             ],

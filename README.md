@@ -164,7 +164,7 @@ lib/
 
 ### 1. Clonar e instalar dependencias
 ```bash
-git clone <url-del-repositorio>
+git clone https://github.com/JDH-CS/Proyecto-DIME.git
 cd DIME
 flutter pub get
 ```

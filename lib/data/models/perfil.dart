@@ -27,6 +27,7 @@ class Perfil {
     required this.celular,
     this.fotoRuta,
     this.fotoUrl,
+    this.dosPasos = false,
   });
 
   final String id;
@@ -42,6 +43,9 @@ class Perfil {
   final String celular;
   final String? fotoRuta;
   final String? fotoUrl;
+
+  /// Verificación en dos pasos por correo (columna p2fa_email).
+  final bool dosPasos;
 
   String get nombreCompleto => '$nombre $apellido';
 
@@ -61,6 +65,7 @@ class Perfil {
         celular: (m['ptelefono'] as String?) ?? '—',
         fotoRuta: m['pfoto_ruta'] as String?,
         fotoUrl: fotoUrl,
+        dosPasos: (m['p2fa_email'] as bool?) ?? false,
       );
 
   Perfil copyWith({
@@ -71,6 +76,7 @@ class Perfil {
     String? fotoRuta,
     String? fotoUrl,
     bool quitarFoto = false,
+    bool? dosPasos,
   }) =>
       Perfil(
         id: id,
@@ -85,5 +91,6 @@ class Perfil {
         celular: celular ?? this.celular,
         fotoRuta: quitarFoto ? null : (fotoRuta ?? this.fotoRuta),
         fotoUrl: quitarFoto ? null : (fotoUrl ?? this.fotoUrl),
+        dosPasos: dosPasos ?? this.dosPasos,
       );
 }

@@ -6,13 +6,17 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/config/supabase_config.dart';
 import '../../core/utils/auth_errors.dart';
 import '../../core/utils/biometric_vault.dart';
+import '../../core/utils/recovery_guard.dart';
 import '../../core/utils/ui_helpers.dart';
 import '../../core/utils/validators.dart';
 import '../../core/widgets/dime_logo.dart';
+import '../../data/services/dos_pasos_service.dart';
 import '../../navigation/main_shell.dart';
 import '../../state/app_state.dart';
 import 'forgot_password_screen.dart';
 import 'register_screen.dart';
+import 'two_factor_screen.dart';
+import 'verify_email_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -41,15 +45,53 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _cargando = true);
     final state = context.read<AppState>();
     final navigator = Navigator.of(context);
-    try {
-      await supabase.auth.signInWithPassword(email: email, password: password);
+    try 
+    {
+      // Marca de "acceso a medias": si la app se cierra antes de terminar (por ejemplo,
+      // entre la contraseña y el código de dos pasos), AuthGate cierra esa sesión al reabrir.
+      await RecoveryGuard.marcar();
+      final res = await supabase.auth.signInWithPassword(email: email, password: password);
+
+      // Verificación en dos pasos: la contraseña fue correcta, pero falta el código del correo.
+      // Se cierra la sesión del paso 1 y solo se abre de nuevo al verificar el código.
+      if (await DosPasosService.activo(res.user!.id)) {
+        await supabase.auth.signOut(scope: SignOutScope.local);
+        await RecoveryGuard.limpiar();
+        await DosPasosService.enviarCodigo(email);
+        navigator.push(MaterialPageRoute(
+          builder: (_) => TwoFactorScreen(
+            email: email,
+            passwordParaHuella: guardarParaHuella ? password : null,
+          ),
+        ));
+        return;
+      }
+
       await state.cargar();
+      await RecoveryGuard.limpiar();
       if (guardarParaHuella) await BiometricVault.guardar(email, password);
+      await cerrarTeclado();
       navigator.pushReplacement(MaterialPageRoute(builder: (_) => const MainShell()));
-    } catch (e) {
+    } 
+    catch (e) 
+    {
       await supabase.auth.signOut(scope: SignOutScope.local);
+      await RecoveryGuard.limpiar();
+      if (e is AuthException && e.message.toLowerCase().contains('email not confirmed')) 
+      {
+        navigator.push(MaterialPageRoute(
+          builder: (_) => VerifyEmailScreen(
+            email: email,
+            password: password,
+            reenviarAlAbrir: true,
+            ),
+        ));
+        return;
+      }
       if (mounted) showSoon(context, mensajeAuth(e));
-    } finally {
+    } 
+    finally 
+    {
       if (mounted) setState(() => _cargando = false);
     }
   }

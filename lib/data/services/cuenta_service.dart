@@ -6,6 +6,7 @@ import '../../core/config/supabase_config.dart';
 import '../../core/utils/biometric_vault.dart';
 import '../../state/app_state.dart';
 import '../models/reporte_soporte.dart';
+import 'bank_token_store.dart';
 
 /// Operaciones de perfil, cuenta y soporte contra Supabase.
 class CuentaService {
@@ -104,6 +105,50 @@ class CuentaService {
     final email = _email;
     await supabase.auth.signInWithPassword(email: email, password: password);
     await BiometricVault.guardar(email, password);
+  }
+
+  /// Elimina la cuenta de forma permanente (autoservicio).
+  ///
+  /// 1. Verifica la contraseña.  2. Revoca la conexión bancaria.
+  /// 3. Borra las fotos de Storage (la BD no puede borrar archivos).
+  /// 4. Llama a la función SQL eliminar_mi_cuenta, que borra al usuario y sus
+  ///    datos en cascada, guarda el motivo anónimo y envía el correo de despedida.
+  /// 5. Limpia los datos guardados en el dispositivo y cierra la sesión local.
+  Future<void> eliminarCuenta({
+    required String password,
+    required String motivo,
+    String? comentario,
+  }) async {
+    final email = _email;
+    final uid = _state.perfil.id;
+
+    await supabase.auth.signInWithPassword(email: email, password: password);
+
+    try {
+      await _state.desvincularBanco();
+    } catch (_) {
+      // Si el banco simulado no responde, igual se elimina la cuenta.
+    }
+
+    try {
+      final storage = supabase.storage.from(_bucket);
+      final archivos = await storage.list(path: uid);
+      if (archivos.isNotEmpty) {
+        await storage.remove([for (final f in archivos) '$uid/${f.name}']);
+      }
+    } catch (_) {}
+
+    await supabase.rpc('eliminar_mi_cuenta', params: {
+      'p_motivo': motivo,
+      'p_comentario': comentario,
+    });
+
+    final cred = await BiometricVault.leer();
+    if (cred != null && cred.email.toLowerCase() == email.toLowerCase()) {
+      await BiometricVault.borrar();
+    }
+    await BankTokenStore.borrar(uid);
+    await supabase.auth.signOut(scope: SignOutScope.local);
   }
 
   // ───────────── Soporte ─────────────

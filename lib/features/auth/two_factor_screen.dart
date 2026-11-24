@@ -1,0 +1,176 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+
+import '../../core/utils/auth_errors.dart';
+import '../../core/utils/biometric_vault.dart';
+import '../../core/utils/ui_helpers.dart';
+import '../../data/services/dos_pasos_service.dart';
+import '../../navigation/main_shell.dart';
+import '../../state/app_state.dart';
+
+/// Segundo paso del inicio de sesión: el código enviado al correo.
+/// Se muestra después de validar la contraseña, cuando el usuario tiene
+/// activa la verificación en dos pasos.
+class TwoFactorScreen extends StatefulWidget {
+  const TwoFactorScreen({super.key, required this.email, this.passwordParaHuella});
+
+  final String email;
+
+  /// Si viene, se guarda para el inicio con huella al completar el acceso.
+  final String? passwordParaHuella;
+
+  @override
+  State<TwoFactorScreen> createState() => _TwoFactorScreenState();
+}
+
+class _TwoFactorScreenState extends State<TwoFactorScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _codigoCtrl = TextEditingController();
+
+  bool _cargando = false;
+  int _segundos = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _iniciarEspera(); // el código se acaba de enviar desde el login
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _codigoCtrl.dispose();
+    super.dispose();
+  }
+
+  void _iniciarEspera() {
+    _timer?.cancel();
+    setState(() => _segundos = 60);
+    _timer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      setState(() {
+        _segundos--;
+        if (_segundos <= 0) t.cancel();
+      });
+    });
+  }
+
+  Future<void> _reenviar() async {
+    setState(() => _cargando = true);
+    try {
+      await DosPasosService.enviarCodigo(widget.email);
+      if (!mounted) return;
+      _iniciarEspera();
+      showSoon(context, 'Te enviamos un código nuevo.');
+    } catch (e) {
+      if (mounted) showSoon(context, mensajeAuth(e));
+    } finally {
+      if (mounted) setState(() => _cargando = false);
+    }
+  }
+
+  Future<void> _verificar() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _cargando = true);
+
+    final state = context.read<AppState>();
+    final navigator = Navigator.of(context);
+
+    try {
+      await DosPasosService.verificarCodigo(widget.email, _codigoCtrl.text);
+      await state.cargar();
+      final password = widget.passwordParaHuella;
+      if (password != null) await BiometricVault.guardar(widget.email, password);
+
+      await cerrarTeclado();
+      navigator.pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const MainShell()),
+        (route) => false,
+      );
+    } catch (e) {
+      if (mounted) showSoon(context, mensajeAuth(e));
+    } finally {
+      if (mounted) setState(() => _cargando = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
+    final spinner = SizedBox(
+      width: 20,
+      height: 20,
+      child: CircularProgressIndicator(strokeWidth: 2, color: cs.onPrimary),
+    );
+
+    return Scaffold(
+      appBar: AppBar(),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Icon(Icons.verified_user_outlined, size: 56, color: cs.primary),
+                  const SizedBox(height: 16),
+                  Text('Verificación en dos pasos',
+                      style: t.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Por tu seguridad, ingresa el código de 6 dígitos que enviamos a '
+                    '${widget.email}. Si no lo ves, revisa la carpeta de spam.',
+                    style: t.bodyMedium?.copyWith(color: Colors.black54),
+                  ),
+                  const SizedBox(height: 28),
+                  Form(
+                    key: _formKey,
+                    child: TextFormField(
+                      controller: _codigoCtrl,
+                      autofocus: true,
+                      keyboardType: TextInputType.number,
+                      textAlign: TextAlign.center,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(10),
+                      ],
+                      style: t.headlineSmall?.copyWith(fontWeight: FontWeight.w800, letterSpacing: 8),
+                      decoration: const InputDecoration(labelText: 'Código', counterText: ''),
+                      validator: (v) =>
+                          (v == null || v.trim().length < 6) ? 'Ingresa el código de 6 dígitos' : null,
+                      onFieldSubmitted: (_) => _cargando ? null : _verificar(),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  FilledButton(
+                    onPressed: _cargando ? null : _verificar,
+                    child: _cargando ? spinner : const Text('Verificar y entrar'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: (_cargando || _segundos > 0) ? null : _reenviar,
+                    child: Text(_segundos > 0 ? 'Reenviar código en $_segundos s' : 'Reenviar código'),
+                  ),
+                  TextButton(
+                    onPressed: _cargando ? null : () => Navigator.of(context).pop(),
+                    child: const Text('Cancelar'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

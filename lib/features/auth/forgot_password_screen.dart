@@ -127,6 +127,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       }
 
       await state.cargar();
+      await cerrarTeclado();
       navigator.pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const MainShell()),
         (route) => false,

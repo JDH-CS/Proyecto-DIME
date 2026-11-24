@@ -12,6 +12,9 @@ import '../../core/utils/validators.dart';
 import '../../core/widgets/phone_field.dart';
 import '../../navigation/main_shell.dart';
 import '../../state/app_state.dart';
+import '../legal/terms_screen.dart';
+import '../legal/terms_text.dart';
+import 'verify_email_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -32,6 +35,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   PaisTelefono _pais = PaisesTelefono.panama;
   bool _usaPasaporte = false;
+  bool _aceptaTerminos = false;
   bool _obscure = true;
   bool _cargando = false;
   DateTime? _fechaNac;
@@ -92,13 +96,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
           'fecha_nacimiento': _fechaIso(_fechaNac!),
           'documento_identidad': _docCtrl.text.trim().toUpperCase(),
           'telefono': PaisesTelefono.unir(_pais, _celCtrl.text),
+          // Constancia de la aceptación (queda en auth.users.raw_user_meta_data).
+          'terminos_version': TermsText.version,
+          'terminos_aceptados_en': DateTime.now().toUtc().toIso8601String(),
         },
       );
+      // Con "Confirm email" activo, Supabase no devuelve sesión: hay que confirmar el correo.
       if (res.session == null) {
-        throw const AuthException('Revisa tu correo para confirmar la cuenta.');
+        // Correo ya confirmado por otra cuenta: Supabase responde "ok" pero sin identidades.
+        if (res.user?.identities?.isEmpty ?? false) {
+          throw const AuthException('User already registered');
+        }
+        navigator.pushReplacement(MaterialPageRoute(
+          builder: (_) => VerifyEmailScreen(email: email, password: password),
+        ));
+        return;
       }
       await state.cargar();
       await BiometricVault.guardar(email, password);
+      await cerrarTeclado();
       navigator.pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const MainShell()),
         (route) => false,
@@ -236,7 +252,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                       validator: Validators.passwordRegistro,
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 16),
+                    _TerminosField(
+                      aceptado: _aceptaTerminos,
+                      onChanged: (v) => setState(() => _aceptaTerminos = v),
+                    ),
+                    const SizedBox(height: 16),
                     FilledButton(
                       onPressed: _cargando ? null : _crearCuenta,
                       child: _cargando
@@ -271,6 +292,77 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Casilla obligatoria "He leído y aceptado los términos y condiciones".
+/// Es un FormField para que el formulario no se envíe sin marcarla.
+class _TerminosField extends StatelessWidget {
+  const _TerminosField({required this.aceptado, required this.onChanged});
+
+  final bool aceptado;
+  final ValueChanged<bool> onChanged;
+
+  Future<void> _abrirTerminos(BuildContext context, FormFieldState<bool> field) async {
+    final acepto = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const TermsScreen(mostrarAceptar: true)),
+    );
+    if (acepto == true) {
+      field.didChange(true);
+      onChanged(true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
+
+    return FormField<bool>(
+      initialValue: aceptado,
+      validator: (v) => v == true ? null : 'Debes aceptar los términos y condiciones',
+      builder: (field) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Checkbox(
+                value: field.value ?? false,
+                onChanged: (v) {
+                  field.didChange(v ?? false);
+                  onChanged(v ?? false);
+                },
+              ),
+              Expanded(
+                child: Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text('He leído y aceptado los ', style: t.bodyMedium),
+                    InkWell(
+                      onTap: () => _abrirTerminos(context, field),
+                      child: Text(
+                        'términos y condiciones',
+                        style: t.bodyMedium?.copyWith(
+                          color: cs.primary,
+                          fontWeight: FontWeight.w700,
+                          decoration: TextDecoration.underline,
+                          decorationColor: cs.primary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (field.hasError)
+            Padding(
+              padding: const EdgeInsets.only(left: 12),
+              child: Text(field.errorText!, style: t.bodySmall?.copyWith(color: cs.error)),
+            ),
+        ],
       ),
     );
   }

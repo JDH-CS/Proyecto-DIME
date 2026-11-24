@@ -20,5 +20,9 @@ class CategoryTemplates {
     ('Café', 'coffee'),
     ('Hijos', 'child'),
     ('Ahorros', 'savings'),
+    ('Apuestas', 'casino'),
+    ('Préstamos', 'loan'),
+    ('Seguros', 'insurance'),
+    ('Pagos a Financieras', 'finance'),
   ];
 }

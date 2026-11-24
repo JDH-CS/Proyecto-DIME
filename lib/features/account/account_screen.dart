@@ -10,6 +10,7 @@ import '../../data/services/cuenta_service.dart';
 import '../../state/app_state.dart';
 import '../support/report_form_screen.dart';
 import 'change_password_screen.dart';
+import 'delete_account_screen.dart';
 
 /// "Administrar cuenta de DIME": correo, contraseña y seguridad.
 class AccountScreen extends StatefulWidget {
@@ -141,7 +142,7 @@ class _AccountScreenState extends State<AccountScreen> {
               padding: const EdgeInsets.symmetric(vertical: 4),
               child: ListTile(
                 leading: const Icon(Icons.support_agent_rounded),
-                title: const Text('Cambiar correo o eliminar mi cuenta',
+                title: const Text('Cambiar correo',
                     style: TextStyle(fontWeight: FontWeight.w600)),
                 subtitle: const Text('Escríbenos y lo gestionamos por correo'),
                 trailing: const Icon(Icons.chevron_right_rounded),
@@ -149,9 +150,26 @@ class _AccountScreenState extends State<AccountScreen> {
                   MaterialPageRoute(
                     builder: (_) => const ReportFormScreen(
                       tipoInicial: 'consulta',
-                      asuntoInicial: 'Solicitud sobre mi cuenta',
+                      asuntoInicial: 'Solicitud de cambio de correo',
                     ),
                   ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SoftCard(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: ListTile(
+                leading: Icon(Icons.delete_forever_outlined, color: Theme.of(context).colorScheme.error),
+                title: Text('Eliminar mi cuenta',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.error,
+                    )),
+                subtitle: const Text('Borra tu cuenta y todos tus datos de forma permanente'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const DeleteAccountScreen()),
                 ),
               ),
             ),

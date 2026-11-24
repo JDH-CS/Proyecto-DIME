@@ -5,7 +5,8 @@ import 'package:flutter/material.dart';
 class AppIcons {
   AppIcons._();
 
-  static const Map<String, IconData> all = {
+  static const Map<String, IconData> all = 
+  {
     'home': Icons.home_rounded,
     'restaurant': Icons.restaurant_rounded,
     'car': Icons.directions_car_rounded,
@@ -25,6 +26,9 @@ class AppIcons {
     'work': Icons.work_rounded,
     'savings': Icons.savings_rounded,
     'casino': Icons.casino_rounded,
+    'loan': Icons.request_quote_rounded,
+    'insurance': Icons.shield_rounded,
+    'finance': Icons.payments_rounded,
   };
 
   static IconData of(String key) => all[key] ?? Icons.category_rounded;

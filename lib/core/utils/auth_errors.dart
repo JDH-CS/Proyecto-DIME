@@ -5,6 +5,10 @@ String mensajeAuth(Object e) {
   final msg = (e is AuthException ? e.message : e.toString()).toLowerCase();
 
   if (msg.contains('invalid login credentials')) return 'Correo o contraseña incorrectos.';
+  if (msg.contains('email not confirmed')) return 'Confirma tu correo para entrar.';
+  if (msg.contains('email address') && msg.contains('invalid')) {
+    return 'Ese correo no es válido.';
+  }
   if (msg.contains('already registered') || msg.contains('already been registered')) {
     return 'Ya existe una cuenta con ese correo.';
   }
